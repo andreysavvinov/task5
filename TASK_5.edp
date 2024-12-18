@@ -1,7 +1,10 @@
+load "iovtk"
+int[int] Order = [1];
+
 /* Domain deometry */
 
-real L = 10; /* [m] */
-real H = 10; /* [m] */
+real L = 80*4; /* [m] */
+real H = 80*4; /* [m] */
 
 /* Physical parameters */
 
@@ -27,7 +30,8 @@ int n = 50;
 
 real[int] xP = [-L, 0, L, L, -L];
 real[int] yP = [0, 0, 0, H, H];
-int[int] nGamma = [5*L/L, 5*L/L, H/L, 2*L/L, H/L]*n;
+int[int] nGamma = [12.8*L/L, 12.8*L/L, H/L, 2*L/L, H/L]*n;
+// int[int] nGamma = [5*L/L, 5*L/L, H/L, 2*L/L, H/L]*n;
 
 int labelF = 1;
 int labelR = 2;
@@ -46,7 +50,7 @@ border GammaDomainOut(t = 0, 1; i){
 
 
 mesh Th = buildmesh( GammaDomainOut(nGamma));
-plot(Th);
+plot(Th, wait=1);
 
 /* Diff. operators */
 real sqrt2 = sqrt(2.0);
@@ -68,20 +72,20 @@ Vh [uu, vv, pp];
 Vh1 uOld, vOld;
 Vh1 pOld;
 
-real t=0;
-real dt = 0.001;
+real t = 0.0;
+real dt = 100.0;
 
-real delta = 1e-24; /*штраф*/
+real delta = 1e-20; /*штраф*/
 
 Vh1 v0, u0;
 Vh1 p0;
 
 
 /* Delta function def. */
-real Q = 100;
-real[int] xdelta = [0.0];//  coord x de delta_i
-real[int] ydelta = [0.0];//  coord x de delta_j
-real[int] cdelta=[Q];//  coef    delta_i
+real Q = 150.0 / (24.0 * 3600.0 * 15.0) ;
+real[int] xdelta = [0.0, 100.0];//  coord x de delta_i
+real[int] ydelta = [0.0, 0.0];//  coord x de delta_j
+real[int] cdelta=[Q*dt, -Q*dt];//  coef    delta_i
 
 matrix D = interpolate(Vh1,xdelta,ydelta);
 
@@ -97,13 +101,13 @@ for(int iter = 0; iter<Th.nv; iter++){
 
 plot(Th, b, dim=3, fill=1, nbiso=10, value=1, wait=1);
 
-plot(Th, bU, dim=3, fill=1, nbiso=10, value=1, wait=1);
+// plot(Th, bU, dim=3, fill=1, nbiso=10, value=1, wait=1);
 
-plot(Th, bV, dim=3, fill=1, nbiso=10, value=1, wait=1);
+// plot(Th, bV, dim=3, fill=1, nbiso=10, value=1, wait=1);
 
-plot(Th, bP, dim=3, fill=1, nbiso=10, value=1, wait=1);
+// plot(Th, bP, dim=3, fill=1, nbiso=10, value=1, wait=1);
 
-real omega = 0; /*relaxation parameter*/
+real omega = 1; /*relaxation parameter*/
 
 /*initial cycle for the nonlinearity on the fracture boundary(next cycle)*/
 
@@ -128,7 +132,8 @@ real omega = 0; /*relaxation parameter*/
                 p*vv
             )
             +on(labelR, labelT, labelL, p=pInf)
-            +on(labelF, v=0);
+            +on(labelF, v=0)
+            ;
 
         InitProblem;
 
@@ -146,6 +151,7 @@ vOld = v;
 pOld = p;
 
 
+// plot(Th, v, dim=3, fill=1, nbiso=50, value=1, wait=1);
 
 
 /*Time cycle*/
@@ -153,14 +159,15 @@ pOld = p;
 cout << "__________________Time cycle begins________________" << endl;
 
 real L2Tol = 1e-5;
-
-for(int i = 0; i < 100; i++){
+exec("mkdir vtkFiles");
+for(int i = 0; i < 160; i++){
     cout << "Time t = " << t << endl;
     
     /*nonlinearity cycle*/
     int iIter = 0;
     real L2RelError = 1.0;
-    int nIterMax = 20;
+    int nIterMax = 100;
+    real omega = 0;
 
     while((iIter < nIterMax) && (L2RelError > L2Tol)){
         problem TimeProblem( [u, v, p], [uu, vv, pp] ) =
@@ -200,7 +207,9 @@ for(int i = 0; i < 100; i++){
             -int1d(Th,labelF)(
                 omega*(v0*v0/mu)*v0*dx(p0)*dx(pp)
             )
-            +on(labelR, labelT, labelL, p=pInf);
+            +on(labelR, labelT, labelL, p=pInf)
+            +on(labelR, labelL, v = 0)
+            ;
         
         TimeProblem;   
 
@@ -209,15 +218,15 @@ for(int i = 0; i < 100; i++){
         real L2AbsError =
             sqrt(
                 int2d(Th)(
-                    (u-u0)^2+(v-v0)^2
+                    (v-v0)^2
                 )
             );
         real L2Norm =  sqrt(
                 int2d(Th)(
-                    (v)^2+(u)^2
+                    (v)^2
                 )
             );
-        real L2RelError = L2AbsError / L2Norm;
+        L2RelError = L2AbsError / L2Norm;
 
         real pL2AbsError =
             sqrt(
@@ -234,9 +243,9 @@ for(int i = 0; i < 100; i++){
         
         
         cout << "iIter = " << iIter << endl;
-        cout << "------(u,v) Error------" << endl << " uvRelError = " << L2RelError << endl;
-        cout << "uvAbsError = " << L2AbsError << endl;
-        cout << "(u,v) L2norm = " <<  L2Norm << endl;
+        cout << "------(v) Error------" << endl << " vRelError = " << L2RelError << endl;
+        cout << "vAbsError = " << L2AbsError << endl;
+        cout << "(v) L2norm = " <<  L2Norm << endl;
         cout << "------p Error------" << endl << " pRelError = " << pL2RelError << endl;
         cout << "pAbsError = " << pL2AbsError << endl;  
         cout << "p L2Norm = " << pL2Norm << endl << endl;  
@@ -248,7 +257,10 @@ for(int i = 0; i < 100; i++){
         iIter++; 
     }
     
-    plot(Th, v, dim=3, fill=1, nbiso=50, value=1, wait=1);
+    plot(Th, v, dim=3, fill=1, nbiso=50, value=1, wait=0);
+    savevtk("vtkFiles\\v_" + i + ".vtk", Th, v, dataname="V", order=Order);
+    savevtk("vtkFiles\\p_" + i + ".vtk", Th, p, dataname="Pressure", order=Order);
+
 
     uOld = u;
     vOld = v;
