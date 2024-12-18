@@ -2,7 +2,6 @@
 
 real L = 10; /* [m] */
 real H = 10; /* [m] */
-real Rw = 0.5; /* [m], 0.1 */
 
 /* Physical parameters */
 
@@ -18,7 +17,6 @@ real mu = 1e-3; /* [Pa*s], Viscosity */
 
 real Seps = 1e-10; /* [1/Pa], Storativity */
 
-/*real pw = 40e6; /* [Pa], Wellbore pressure */
 real pInf = 20e6; /* [Pa], Reservoir pressure */
 
 real sigmaXInf = 32e6; /* [Pa], Stress on far field border along X axis */
@@ -27,17 +25,17 @@ real sigmaYInf = 30e6; /* [Pa], Stress on far field border along Y axis */
 /* Mesh definition */
 int n = 50;
 
-real[int] xP = [-L, L, L, -L];
-real[int] yP = [-H, -H, H, H];
-int[int] nGamma = [10*L/L, H/L, L/L, H/L]*n;
+real[int] xP = [-L, 0, L, L, -L];
+real[int] yP = [0, 0, 0, H, H];
+int[int] nGamma = [5*L/L, 5*L/L, H/L, 2*L/L, H/L]*n;
 
-int labelB = 1;
+int labelF = 1;
 int labelR = 2;
 int labelT = 3;
 int labelL = 4;
 
 
-int[int] labelGamma = [labelB, labelR, labelT, labelL];
+int[int] labelGamma = [labelF, labelF, labelR, labelT, labelL];
 
 border GammaDomainOut(t = 0, 1; i){
     int iNext = (i+1)%nGamma.n;
@@ -73,12 +71,39 @@ Vh1 pOld;
 real t=0;
 real dt = 0.001;
 
-real delta = 1e-30; /*штраф*/
+real delta = 1e-24; /*штраф*/
 
 Vh1 v0, u0;
 Vh1 p0;
 
-real omega = 1; /*relaxation parameter*/
+
+/* Delta function def. */
+real Q = 100;
+real[int] xdelta = [0.0];//  coord x de delta_i
+real[int] ydelta = [0.0];//  coord x de delta_j
+real[int] cdelta=[Q];//  coef    delta_i
+
+matrix D = interpolate(Vh1,xdelta,ydelta);
+
+Vh1 b;
+b[]= D*cdelta;
+b[]= -b[];
+
+Vh [bU, bV, bP];
+
+for(int iter = 0; iter<Th.nv; iter++){
+    bU[][3*iter+2] = b[][iter];
+}
+
+plot(Th, b, dim=3, fill=1, nbiso=10, value=1, wait=1);
+
+plot(Th, bU, dim=3, fill=1, nbiso=10, value=1, wait=1);
+
+plot(Th, bV, dim=3, fill=1, nbiso=10, value=1, wait=1);
+
+plot(Th, bP, dim=3, fill=1, nbiso=10, value=1, wait=1);
+
+real omega = 0; /*relaxation parameter*/
 
 /*initial cycle for the nonlinearity on the fracture boundary(next cycle)*/
 
@@ -93,17 +118,17 @@ real omega = 1; /*relaxation parameter*/
             +int1d(Th, labelR)(
                 sigmaXInf*uu
             )
-            +int1d(Th, labelL)(
+            -int1d(Th, labelL)(
                 sigmaXInf*uu
             )
             +int1d(Th, labelT)(
                 sigmaYInf*vv
             )
-            -int1d(Th, labelB)(
+            -int1d(Th, labelF)(
                 p*vv
             )
             +on(labelR, labelT, labelL, p=pInf)
-            +on(labelB, v=0);
+            +on(labelF, v=0);
 
         InitProblem;
 
@@ -136,7 +161,6 @@ for(int i = 0; i < 100; i++){
     int iIter = 0;
     real L2RelError = 1.0;
     int nIterMax = 20;
-    real omega = 0;
 
     while((iIter < nIterMax) && (L2RelError > L2Tol)){
         problem TimeProblem( [u, v, p], [uu, vv, pp] ) =
@@ -154,25 +178,26 @@ for(int i = 0; i < 100; i++){
             +int1d(Th, labelR)(
                 sigmaXInf*uu
             )
-            +int1d(Th, labelL)(
+            -int1d(Th, labelL)(
                 sigmaXInf*uu
             )
             +int1d(Th, labelT)(
                 sigmaYInf*vv
             )
-            -int1d(Th, labelB)(
+            -int1d(Th, labelF)(
                 p*vv
             )
-            +int1d(Th, labelB)(
+            +int1d(Th, labelF)(
                 (v0<0)*(v/delta)*vv
             )
-            +int1d(Th, labelB)(
+            +int1d(Th, labelF)(
                 v*pp + dt*((v0*v0*v0/3/mu) * dx(p) + omega* (v0*v0/mu) * v * dx(p0))*dx(pp)
             )
-            -int1d(Th, labelB)(
+            +bU[]
+            -int1d(Th, labelF)(
                 vOld*pp
             )
-            -int1d(Th,labelB)(
+            -int1d(Th,labelF)(
                 omega*(v0*v0/mu)*v0*dx(p0)*dx(pp)
             )
             +on(labelR, labelT, labelL, p=pInf);
