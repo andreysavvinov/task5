@@ -81,15 +81,7 @@ Vh1 p0;
 real omega = 1; /*relaxation parameter*/
 
 /*initial cycle for the nonlinearity on the fracture boundary(next cycle)*/
-/*parameters for nonlinearity solution*/
 
-// int iIter = 0;
-// int nIterMax = 25;
-
-// real L2RelError = 1.0;
-// real L2Tol = 1e-5;
-
-// while((iIter < nIterMax) && (L2RelError > L2Tol)){
     problem InitProblem( [u, v, p], [uu, vv, pp] ) =
             int2d(Th)(
                 lambda*div(u, v)*div(uu, vv)
@@ -117,163 +109,11 @@ real omega = 1; /*relaxation parameter*/
 
         plot(Th, v, dim=3, fill=1, nbiso=50, value=1);
 
-        // real L2AbsError =
-        //     sqrt(
-        //         int2d(Th)(
-        //             (u-u0)^2+(v-v0)^2
-        //         )
-        //     );
-        // real L2Norm =  sqrt(
-        //         int2d(Th)(
-        //             (v)^2+(u)^2
-        //         )
-        //     );
-        // real L2RelError = L2AbsError / L2Norm;
-
-        // real pL2AbsError =
-        //     sqrt(
-        //         int2d(Th)(
-        //             (p-p0)^2
-        //         )
-        //     );
-        // real pL2Norm = sqrt(
-        //         int2d(Th)(
-        //             (p)^2
-        //         )
-        //     );
-        // real pL2RelError = pL2AbsError / pL2Norm;
-        
-        
-        // cout << "iIter = " << iIter << endl;
-        // cout << "------(u,v) Error------" << endl << " uvRelError = " << L2RelError << endl;
-        // cout << "uvAbsError = " << L2AbsError << endl;
-        // cout << "(u,v) L2norm = " <<  L2Norm << endl;
-        // cout << "------p Error------" << endl << " pRelError = " << pL2RelError << endl;
-        // cout << "pAbsError = " << pL2AbsError << endl;  
-        // cout << "p L2Norm = " << pL2Norm << endl << endl;     
-        
-        // real a = iIter;
-        // omega = ( a/nIterMax)^5;
-        
-        // cout <<"omega =" << omega << endl;
-        // if(velL2RelError>1)
-        //     omega = 0;
-        // else if(velL2RelError<=0.5)
-        //     omega = 1;
-        // else 
-        //     omega = 0.5;
         
         v0=v;
         p0=p;
         u0=u;
 
-        // iIter++;
-
-// real err0 = 0.01;
-//  Th = adaptmesh(
-//             Th, u, nbvx = 40000,
-//             err = err0, iso=1
-//         );
-//   u[] =u[];
-    
-//   u0 =u0;
-//   v0 =v0;
-//   p0 =p0;   
-
-/*cycle for nonlinearity in contact stresses and on Reynolds eq(initial for nonstationary)*/
-// cout << "______________Second initial cycle________________" << endl; 
-// iIter = 0;
-// L2RelError = 1.0;
-// nIterMax = 100;
-
-// while((iIter < nIterMax) && (L2RelError > L2Tol)){
-//     problem InitProblem( [u, v, p], [uu, vv, pp] ) =
-//             int2d(Th)(
-//                 lambda*div(u, v)*div(uu, vv)
-//                 + 2*G*epsilon(u, v)'*epsilon(uu, vv)
-//                 - alpha*p*div(uu, vv)
-
-//                 + k/mu * grad(p)'*grad(pp)
-//             )
-//             +int1d(Th, labelR)(
-//                 sigmaXInf*uu
-//             )
-//             -int1d(Th, labelL)(
-//                 sigmaXInf*uu
-//             )
-//             +int1d(Th, labelT)(
-//                 sigmaYInf*vv
-//             )
-//             -int1d(Th, labelB)(
-//                 p*vv
-//             )
-//             +int1d(Th, labelB)(
-//                 (v0<0)*(v/delta)*vv
-//             )
-//             +int1d(Th, labelB)(
-//                 ((v0*v0*v0/3/mu) * dx(p) + omega* (v0*v0/mu) * v * dx(p0))*dx(pp)
-//             )
-//             -int1d(Th,labelB)(
-//                 omega*(v0*v0/mu)*v0*dx(p0)*dx(pp)
-//             )
-//             +on(labelR, labelT, labelL, p=pInf);
-
-//         InitProblem;
-
-//         plot(Th, v, dim=3, fill=1, nbiso=50, value=1);
-
-//         real L2AbsError =
-//             sqrt(
-//                 int2d(Th)(
-//                     (u-u0)^2+(v-v0)^2
-//                 )
-//             );
-//         real L2Norm =  sqrt(
-//                 int2d(Th)(
-//                     (v)^2+(u)^2
-//                 )
-//             );
-//         real L2RelError = L2AbsError / L2Norm;
-
-//         real pL2AbsError =
-//             sqrt(
-//                 int2d(Th)(
-//                     (p-p0)^2
-//                 )
-//             );
-//         real pL2Norm = sqrt(
-//                 int2d(Th)(
-//                     (p)^2
-//                 )
-//             );
-//         real pL2RelError = pL2AbsError / pL2Norm;
-        
-        
-//         cout << "iIter = " << iIter << endl;
-//         cout << "------(u,v) Error------" << endl << " uvRelError = " << L2RelError << endl;
-//         cout << "uvAbsError = " << L2AbsError << endl;
-//         cout << "(u,v) L2norm = " <<  L2Norm << endl;
-//         cout << "------p Error------" << endl << " pRelError = " << pL2RelError << endl;
-//         cout << "pAbsError = " << pL2AbsError << endl;  
-//         cout << "p L2Norm = " << pL2Norm << endl << endl;     
-        
-        // real a = iIter;
-        // omega = ( a/nIterMax)^5;
-        
-        // cout <<"omega =" << omega << endl;
-        // if(velL2RelError>1)
-        //     omega = 0;
-        // else if(velL2RelError<=0.5)
-        //     omega = 1;
-        // else 
-        //     omega = 0.5;
-        
-//         v0=v;
-//         p0=p;
-//         u0=u;
-
-//         iIter++;
-// }
 
 
 uOld = u;
@@ -287,13 +127,16 @@ pOld = p;
 
 cout << "__________________Time cycle begins________________" << endl;
 
+real L2Tol = 1e-5;
+
 for(int i = 0; i < 100; i++){
     cout << "Time t = " << t << endl;
     
     /*nonlinearity cycle*/
-    iIter = 0;
-    L2RelError = 1.0;
-    nIterMax = 100;
+    int iIter = 0;
+    real L2RelError = 1.0;
+    int nIterMax = 20;
+    real omega = 0;
 
     while((iIter < nIterMax) && (L2RelError > L2Tol)){
         problem TimeProblem( [u, v, p], [uu, vv, pp] ) =
@@ -380,7 +223,7 @@ for(int i = 0; i < 100; i++){
         iIter++; 
     }
     
- 
+    plot(Th, v, dim=3, fill=1, nbiso=50, value=1, wait=1);
 
     uOld = u;
     vOld = v;
