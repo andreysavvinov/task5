@@ -75,7 +75,7 @@ Vh1 pOld;
 real t = 0.0;
 real dt = 100.0;
 
-real delta = 1e-24; /*штраф*/
+real delta = 1e-20; /*штраф*/
 
 Vh1 v0, u0;
 Vh1 p0;
@@ -132,7 +132,8 @@ real omega = 1; /*relaxation parameter*/
                 p*vv
             )
             +on(labelR, labelT, labelL, p=pInf)
-            +on(labelF, v=0);
+            +on(labelF, v=0)
+            ;
 
         InitProblem;
 
