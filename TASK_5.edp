@@ -93,7 +93,7 @@ real omega = 1; /*relaxation parameter*/
             +int1d(Th, labelR)(
                 sigmaXInf*uu
             )
-            -int1d(Th, labelL)(
+            +int1d(Th, labelL)(
                 sigmaXInf*uu
             )
             +int1d(Th, labelT)(
@@ -154,7 +154,7 @@ for(int i = 0; i < 100; i++){
             +int1d(Th, labelR)(
                 sigmaXInf*uu
             )
-            -int1d(Th, labelL)(
+            +int1d(Th, labelL)(
                 sigmaXInf*uu
             )
             +int1d(Th, labelT)(
