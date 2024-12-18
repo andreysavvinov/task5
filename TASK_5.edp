@@ -256,7 +256,7 @@ for(int i = 0; i < 100; i++){
         iIter++; 
     }
     
-    plot(Th, v, dim=3, fill=1, nbiso=50, value=1, wait=1);
+    plot(Th, v, dim=3, fill=1, nbiso=50, value=1, wait=0);
     savevtk("vtkFiles\\v_" + i + ".vtk", Th, v, dataname="V", order=Order);
     savevtk("vtkFiles\\p_" + i + ".vtk", Th, p, dataname="Pressure", order=Order);
 
