@@ -1,0 +1,130 @@
+/* Domain geometry */
+real ROut = 10.0; /* Radius of outer circle */
+real RIn = 5.0; /* Radius of inner circle */
+
+
+/* Boundary conditions */ 
+func uExactFunc = log(sqrt(x^2 + y^2));
+func vExactFunc = x^2 + y^2;
+real vOut = 1.0;
+real vIn = 2.0;
+
+
+/* Mesh definition */
+int NN = 50*2*2*2;
+int NOut = NN;
+int NIn = int (RIn/ROut*NN);
+
+int labelIn = 1; /* Label for inner circle */
+int labelOut = 2; /* Label for outer circle */
+
+
+/* Inner circle border definition */
+border GammaIn(t = 2*pi, 0.0){
+    x = RIn * cos(t);
+    y = RIn * sin(t);
+    label = labelIn;
+}
+
+/* Outer circle border definition */
+border GammaOut(t = 0.0, 2*pi){
+    x = ROut * cos(t);
+    y = ROut * sin(t);
+    label = labelOut;
+}
+
+mesh Th = buildmesh(GammaOut(NOut) + GammaIn(NIn));
+
+plot(Th, wait=1);
+
+
+
+
+real[int] xdelta = [0.0];//  coord x de delta_i
+real[int] ydelta = [0.0];//  coord x de delta_j
+real[int] cdelta=[-2*pi];//  coef    delta_i
+
+fespace Vh(Th,P1);     
+
+matrix D = interpolate(Vh,xdelta,ydelta); // the interpolation matrix  
+// at point (xdelta[j],ydelta[i] ) \hfilll
+// so $D_ij = w^i((xdelta[j],ydelta[j]) $ where $w^i$ are the basic function of $V_h$. 
+
+
+Vh u, v;
+Vh uu, vv;
+
+Vh b;
+b[]= D*cdelta;
+b[]= -b[];
+
+problem laplace(u, v, uu ,vv ) =
+    int2d(Th)( dx(u)*dx(uu) + dy(u)*dy(uu) )
+
+    + b[]
+
+    +int2d(Th)( dx(v)*dx(vv) + dy(v)*dy(vv) )
+    +int2d(Th)(4*vv)
+
+
+    + on(labelOut, v=100)
+    + on(labelIn, v=25)
+    + on(labelOut, u=uExactFunc)
+    + on(labelIn, u=uExactFunc);
+
+problem laplace1(u,uu) =                    //  definion of  the problem 
+    int2d(Th)( dx(u)*dx(uu) + dy(u)*dy(uu) ) //  bilinear form
+    + b[]                         //  linear form of the rhs (so an array)
+    + on(labelOut, u=uExactFunc)
+    + on(labelIn, u=uExactFunc) ;          //  boundary condition form
+
+problem laplace2(v,vv) =                    //  definion of  the problem 
+    int2d(Th)( dx(v)*dx(vv) + dy(v)*dy(vv) ) //  bilinear form
+    + int2d(Th)(4*vv)                   //  linear form of the rhs (so an array)
+    + on(labelOut, v=vExactFunc)
+    + on(labelIn, v=vExactFunc) ;          //  boundary condition form
+
+// laplace1;
+// laplace2;
+
+laplace;
+
+Th = adaptmesh(Th, u);
+
+Vh uExact = uExactFunc;
+Vh vExact = vExactFunc;
+
+Vh uErrorAbs = abs(u - uExact);
+Vh vErrorAbs = abs(v - vExact);
+
+real uErrorL2Norm =
+sqrt(
+    int2d(Th)((uErrorAbs)^2)
+);
+
+real uExactL2Norm =
+    sqrt(
+        int2d(Th)((uExact)^2)
+    );
+
+real uErrorRelL2Norm = uErrorL2Norm / uExactL2Norm;
+
+real vErrorL2Norm =
+    sqrt(
+        int2d(Th)((vErrorAbs)^2)
+    );
+
+real vExactL2Norm =
+    sqrt(
+        int2d(Th)((vExact)^2)
+    );
+
+real vErrorRelL2Norm = vErrorL2Norm / vExactL2Norm;
+
+cout << "uErrorRelL2Norm = " << uErrorRelL2Norm << endl;
+cout << "vErrorRelL2Norm = " << vErrorRelL2Norm << endl;
+
+plot(u,wait=1,dim=3,fill=1, nbiso=50, value=1);
+
+
+

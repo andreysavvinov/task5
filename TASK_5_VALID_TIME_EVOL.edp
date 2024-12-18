@@ -1,0 +1,256 @@
+/* Domain deometry */
+
+real L = 10; /* [m] */
+real H = 10; /* [m] */
+real Rw = 0.5; /* [m], 0.1 */
+
+/* Physical parameters */
+
+real G = 10e9; /* [Pa] */
+real lambda = 20e9; /* [Pa] */
+real alpha = 0.8; /* [], Biot coeff. */
+
+real nu = lambda/2/(lambda+G);
+real eta = alpha* (1-2*nu)/(2-2*nu);
+
+real k = 1e-15; /* [m^2], Permeability */
+real mu = 1e-3; /* [Pa*s], Viscosity */
+
+real Seps = 1e-10; /* [1/Pa], Storativity */
+
+real pw = 40e6; /* [Pa], Wellbore pressure */
+real p0 = 20e6; /* [Pa], Reservoir pressure */
+
+/* Mesh definition */
+int n = 50*2;
+int nWell = 4*4*n;
+real[int] xP = [-L, L, L, -L];
+real[int] yP = [-H, -H, H, H];
+int[int] nGamma = [L/L, H/L, L/L, H/L]*n;
+
+int labelB = 1;
+int labelR = 2;
+int labelT = 3;
+int labelL = 4;
+
+int labelW = 5;
+
+int[int] labelGamma = [labelB, labelR, labelT, labelL, labelW];
+
+border GammaDomainOut(t = 0, 1; i){
+    int iNext = (i+1)%nGamma.n;
+    x = xP[i]*(1-t) + xP[iNext]*t;
+    y = yP[i]*(1-t) + yP[iNext]*t;
+    label = labelGamma[i];
+}
+
+border GammaWell(t = 0, 2*pi){
+    x = Rw*cos(t);
+    y = Rw*sin(t);
+    label = labelW;
+}
+
+mesh Th = buildmesh( GammaDomainOut(nGamma));
+plot(Th, wait=1);
+
+/* Diff. operators */
+real sqrt2 = sqrt(2.0);
+macro epsilon(u, v) [dx(u), dy(v), (dy(u) + dx(v))/sqrt2] // EOM
+
+macro div(u, v) (dx(u) + dy(v)) // EOM
+
+macro grad(p) [dx(p), dy(p)] // EOM
+
+/* fespace definition */
+fespace Vh(Th, [P2, P2, P1]);
+
+fespace Vh1(Th, P1);
+fespace Vh2(Th, P2);
+
+Vh [u, v, p];
+Vh [uu, vv, pp];
+
+Vh2 uOld, vOld;
+Vh1 pOld;
+
+real t=0;
+real dt = 0.001;
+
+
+
+
+/* Regional strain tensor main stresses */
+real sigmaX = 32e6;
+real sigmaY = 30e6;
+
+func real sigmaF1(real t){
+    return (lambda + 2*G)*(-Seps*x^2*t/alpha) - alpha*(1 + 2*t*x);
+}
+func real sigmaF2(real t){
+    return 12*y^2*(lambda + 2*G);
+}
+
+func real uExact(real t){
+    return k*t^2/(mu*alpha) - Seps*x^3*t/(3*alpha) + x;
+}
+func real vExact(real t){
+    return y^4;
+}
+real pInf = 20e6; /*[Pa], Reservoir pressure*/
+
+func real g(real t){
+    return pExact(t) + sigmaY(t);
+}
+
+
+
+
+problem InitProblem( [u, v, p], [uu, vv, pp] ) =
+    int2d(Th)(
+        lambda*div(u, v)*div(uu, vv)
+        + 2*G*epsilon(u, v)'*epsilon(uu, vv)
+        - alpha*p*div(uu, vv)
+
+        + k/mu * grad(p)'*grad(pp)
+    )
+    +int1d(Th, labelR)(
+        sigmaX*uu
+    )
+    -int1d(Th, labelL)(
+        sigmaX*uu
+    )
+    +int1d(Th, labelT)(
+        sigmaY*vv
+    )
+    -int1d(Th, labelB)(
+        p*vv
+    )
+    +on(labelR, labelT, labelL, p=pInf)
+    +on(labelB, v=0);
+
+InitProblem;
+
+Vh2 uEx = uExact(t);
+Vh2 vEx = vExact(t);
+Vh1 pEx = pExact(t);
+plot(Th, v, dim=3, fill=1, nbiso=50, value=1, wait=1);
+plot(Th, vEx, dim=3, fill=1, nbiso=50, value=1, wait=1);
+
+uOld = u;
+vOld = v;
+pOld = p;
+
+// for(int i = 0; i < 20; i++){
+problem TimeProblem( [u, v, p], [uu, vv, pp] ) =
+    int2d(Th)(
+        lambda*div(u, v)*div(uu, vv)
+        + 2*G*epsilon(u, v)'*epsilon(uu, vv)
+        - alpha*p*div(uu, vv)
+
+        + dt * k/mu * grad(p)'*grad(pp)
+        + Seps*p*pp + alpha*div(u, v)*pp
+    )
+    +int2d(Th)(
+        sigmaF1(t)*uu + sigmaF2(t)*vv
+    )
+
+    -int2d(Th)(
+       Seps*pOld*pp + alpha*div(uOld, vOld)*pp
+    )
+    
+
+    -int1d(Th, labelR)(
+        sigmaX(t)*uu
+    )
+    -int1d(Th, labelL)(
+        -sigmaX(t)*uu
+    )
+    -int1d(Th, labelT)(
+        sigmaY(t)*vv
+    )
+
+    -int1d(Th, labelB)(
+        p*vv
+    )
+    +on(labelR, labelT, labelL, labelB, p=pInf)
+    +on(labelB, v=vExact(t))
+    +on(labelL, u=uExact(t))
+    ;
+
+
+
+
+for(int i = 0; i < 30; i++){
+
+    TimeProblem;
+
+    Vh2 uEx = uExact(t);
+    Vh2 vEx = vExact(t);
+    Vh1 pEx = pExact(t);
+    
+
+    uOld = u;
+    vOld = v;
+    pOld = p;
+    t = t + dt;
+
+
+}
+
+Vh2 uEx1 = uExact(t);
+Vh2 vEx1 = vExact(t);
+Vh1 pEx1 = pExact(t);
+    
+
+plot(Th, u, dim=3, fill=1, nbiso=50, value=1, wait=1);
+plot(Th, uEx1, dim=3, fill=1, nbiso=50, value=1, wait=1);
+
+plot(Th, v, dim=3, fill=1, nbiso=50, value=1, wait=1);
+plot(Th, vEx1, dim=3, fill=1, nbiso=50, value=1, wait=1);
+
+plot(Th, p, dim=3, fill=1, nbiso=50, value=1, wait=1);
+plot(Th, pEx1, dim=3, fill=1, nbiso=50, value=1, wait=1);
+
+Vh2 uErrorAbs = abs(u - uEx1);
+Vh2 vErrorAbs = abs(v - vEx1);
+Vh1 pErrorAbs = abs(p - pEx1);
+
+real uErrorL2Norm =
+sqrt(
+    int2d(Th)((uErrorAbs)^2)
+);
+
+real uExactL2Norm =
+    sqrt(
+        int2d(Th)((uEx1)^2)
+    );
+
+real uErrorRelL2Norm = uErrorL2Norm / uExactL2Norm;
+
+real vErrorL2Norm =
+    sqrt(
+        int2d(Th)((vErrorAbs)^2)
+    );
+
+real vExactL2Norm =
+    sqrt(
+        int2d(Th)((vEx1)^2)
+    );
+
+real vErrorRelL2Norm = vErrorL2Norm / vExactL2Norm;
+
+real pErrorL2Norm =
+    sqrt(
+        int2d(Th)((pErrorAbs)^2)
+    );
+
+real pExactL2Norm =
+    sqrt(
+        int2d(Th)((pEx1)^2)
+    );
+
+real pErrorRelL2Norm = pErrorL2Norm / pExactL2Norm;
+
+cout << "uErrorRelL2Norm = " << uErrorRelL2Norm << endl;
+cout << "vErrorRelL2Norm = " << vErrorRelL2Norm << endl;
+cout << "pErrorRelL2Norm = " << pErrorRelL2Norm << endl;

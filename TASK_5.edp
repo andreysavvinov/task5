@@ -1,0 +1,398 @@
+/* Domain deometry */
+
+real L = 10; /* [m] */
+real H = 10; /* [m] */
+real Rw = 0.5; /* [m], 0.1 */
+
+/* Physical parameters */
+
+real G = 10e9; /* [Pa] */
+real lambda = 20e9; /* [Pa] */
+real alpha = 0.8; /* [], Biot coeff. */
+
+real nu = lambda/2/(lambda+G);
+real eta = alpha* (1-2*nu)/(2-2*nu);
+
+real k = 1e-15; /* [m^2], Permeability */
+real mu = 1e-3; /* [Pa*s], Viscosity */
+
+real Seps = 1e-10; /* [1/Pa], Storativity */
+
+/*real pw = 40e6; /* [Pa], Wellbore pressure */
+real pInf = 20e6; /* [Pa], Reservoir pressure */
+
+real sigmaXInf = 32e6; /* [Pa], Stress on far field border along X axis */
+real sigmaYInf = 30e6; /* [Pa], Stress on far field border along Y axis */
+
+/* Mesh definition */
+int n = 50;
+
+real[int] xP = [-L, L, L, -L];
+real[int] yP = [-H, -H, H, H];
+int[int] nGamma = [10*L/L, H/L, L/L, H/L]*n;
+
+int labelB = 1;
+int labelR = 2;
+int labelT = 3;
+int labelL = 4;
+
+
+int[int] labelGamma = [labelB, labelR, labelT, labelL];
+
+border GammaDomainOut(t = 0, 1; i){
+    int iNext = (i+1)%nGamma.n;
+    x = xP[i]*(1-t) + xP[iNext]*t;
+    y = yP[i]*(1-t) + yP[iNext]*t;
+    label = labelGamma[i];
+}
+
+
+mesh Th = buildmesh( GammaDomainOut(nGamma));
+plot(Th);
+
+/* Diff. operators */
+real sqrt2 = sqrt(2.0);
+macro epsilon(u, v) [dx(u), dy(v), (dy(u) + dx(v))/sqrt2] // EOM
+
+macro div(u, v) (dx(u) + dy(v)) // EOM
+
+macro grad(p) [dx(p), dy(p)] // EOM
+
+/* fespace definition */
+fespace Vh(Th, [P1, P1, P1]);
+
+fespace Vh1(Th, P1);
+
+
+Vh [u, v, p];
+Vh [uu, vv, pp];
+
+Vh1 uOld, vOld;
+Vh1 pOld;
+
+real t=0;
+real dt = 0.001;
+
+real delta = 1e-30; /*штраф*/
+
+Vh1 v0, u0;
+Vh1 p0;
+
+real omega = 1; /*relaxation parameter*/
+
+/*initial cycle for the nonlinearity on the fracture boundary(next cycle)*/
+/*parameters for nonlinearity solution*/
+
+// int iIter = 0;
+// int nIterMax = 25;
+
+// real L2RelError = 1.0;
+// real L2Tol = 1e-5;
+
+// while((iIter < nIterMax) && (L2RelError > L2Tol)){
+    problem InitProblem( [u, v, p], [uu, vv, pp] ) =
+            int2d(Th)(
+                lambda*div(u, v)*div(uu, vv)
+                + 2*G*epsilon(u, v)'*epsilon(uu, vv)
+                - alpha*p*div(uu, vv)
+
+                + k/mu * grad(p)'*grad(pp)
+            )
+            +int1d(Th, labelR)(
+                sigmaXInf*uu
+            )
+            -int1d(Th, labelL)(
+                sigmaXInf*uu
+            )
+            +int1d(Th, labelT)(
+                sigmaYInf*vv
+            )
+            -int1d(Th, labelB)(
+                p*vv
+            )
+            +on(labelR, labelT, labelL, p=pInf)
+            +on(labelB, v=0);
+
+        InitProblem;
+
+        plot(Th, v, dim=3, fill=1, nbiso=50, value=1);
+
+        // real L2AbsError =
+        //     sqrt(
+        //         int2d(Th)(
+        //             (u-u0)^2+(v-v0)^2
+        //         )
+        //     );
+        // real L2Norm =  sqrt(
+        //         int2d(Th)(
+        //             (v)^2+(u)^2
+        //         )
+        //     );
+        // real L2RelError = L2AbsError / L2Norm;
+
+        // real pL2AbsError =
+        //     sqrt(
+        //         int2d(Th)(
+        //             (p-p0)^2
+        //         )
+        //     );
+        // real pL2Norm = sqrt(
+        //         int2d(Th)(
+        //             (p)^2
+        //         )
+        //     );
+        // real pL2RelError = pL2AbsError / pL2Norm;
+        
+        
+        // cout << "iIter = " << iIter << endl;
+        // cout << "------(u,v) Error------" << endl << " uvRelError = " << L2RelError << endl;
+        // cout << "uvAbsError = " << L2AbsError << endl;
+        // cout << "(u,v) L2norm = " <<  L2Norm << endl;
+        // cout << "------p Error------" << endl << " pRelError = " << pL2RelError << endl;
+        // cout << "pAbsError = " << pL2AbsError << endl;  
+        // cout << "p L2Norm = " << pL2Norm << endl << endl;     
+        
+        // real a = iIter;
+        // omega = ( a/nIterMax)^5;
+        
+        // cout <<"omega =" << omega << endl;
+        // if(velL2RelError>1)
+        //     omega = 0;
+        // else if(velL2RelError<=0.5)
+        //     omega = 1;
+        // else 
+        //     omega = 0.5;
+        
+        v0=v;
+        p0=p;
+        u0=u;
+
+        // iIter++;
+
+// real err0 = 0.01;
+//  Th = adaptmesh(
+//             Th, u, nbvx = 40000,
+//             err = err0, iso=1
+//         );
+//   u[] =u[];
+    
+//   u0 =u0;
+//   v0 =v0;
+//   p0 =p0;   
+
+/*cycle for nonlinearity in contact stresses and on Reynolds eq(initial for nonstationary)*/
+// cout << "______________Second initial cycle________________" << endl; 
+// iIter = 0;
+// L2RelError = 1.0;
+// nIterMax = 100;
+
+// while((iIter < nIterMax) && (L2RelError > L2Tol)){
+//     problem InitProblem( [u, v, p], [uu, vv, pp] ) =
+//             int2d(Th)(
+//                 lambda*div(u, v)*div(uu, vv)
+//                 + 2*G*epsilon(u, v)'*epsilon(uu, vv)
+//                 - alpha*p*div(uu, vv)
+
+//                 + k/mu * grad(p)'*grad(pp)
+//             )
+//             +int1d(Th, labelR)(
+//                 sigmaXInf*uu
+//             )
+//             -int1d(Th, labelL)(
+//                 sigmaXInf*uu
+//             )
+//             +int1d(Th, labelT)(
+//                 sigmaYInf*vv
+//             )
+//             -int1d(Th, labelB)(
+//                 p*vv
+//             )
+//             +int1d(Th, labelB)(
+//                 (v0<0)*(v/delta)*vv
+//             )
+//             +int1d(Th, labelB)(
+//                 ((v0*v0*v0/3/mu) * dx(p) + omega* (v0*v0/mu) * v * dx(p0))*dx(pp)
+//             )
+//             -int1d(Th,labelB)(
+//                 omega*(v0*v0/mu)*v0*dx(p0)*dx(pp)
+//             )
+//             +on(labelR, labelT, labelL, p=pInf);
+
+//         InitProblem;
+
+//         plot(Th, v, dim=3, fill=1, nbiso=50, value=1);
+
+//         real L2AbsError =
+//             sqrt(
+//                 int2d(Th)(
+//                     (u-u0)^2+(v-v0)^2
+//                 )
+//             );
+//         real L2Norm =  sqrt(
+//                 int2d(Th)(
+//                     (v)^2+(u)^2
+//                 )
+//             );
+//         real L2RelError = L2AbsError / L2Norm;
+
+//         real pL2AbsError =
+//             sqrt(
+//                 int2d(Th)(
+//                     (p-p0)^2
+//                 )
+//             );
+//         real pL2Norm = sqrt(
+//                 int2d(Th)(
+//                     (p)^2
+//                 )
+//             );
+//         real pL2RelError = pL2AbsError / pL2Norm;
+        
+        
+//         cout << "iIter = " << iIter << endl;
+//         cout << "------(u,v) Error------" << endl << " uvRelError = " << L2RelError << endl;
+//         cout << "uvAbsError = " << L2AbsError << endl;
+//         cout << "(u,v) L2norm = " <<  L2Norm << endl;
+//         cout << "------p Error------" << endl << " pRelError = " << pL2RelError << endl;
+//         cout << "pAbsError = " << pL2AbsError << endl;  
+//         cout << "p L2Norm = " << pL2Norm << endl << endl;     
+        
+        // real a = iIter;
+        // omega = ( a/nIterMax)^5;
+        
+        // cout <<"omega =" << omega << endl;
+        // if(velL2RelError>1)
+        //     omega = 0;
+        // else if(velL2RelError<=0.5)
+        //     omega = 1;
+        // else 
+        //     omega = 0.5;
+        
+//         v0=v;
+//         p0=p;
+//         u0=u;
+
+//         iIter++;
+// }
+
+
+uOld = u;
+vOld = v;
+pOld = p;
+
+
+
+
+/*Time cycle*/
+
+cout << "__________________Time cycle begins________________" << endl;
+
+for(int i = 0; i < 100; i++){
+    cout << "Time t = " << t << endl;
+    
+    /*nonlinearity cycle*/
+    iIter = 0;
+    L2RelError = 1.0;
+    nIterMax = 100;
+
+    while((iIter < nIterMax) && (L2RelError > L2Tol)){
+        problem TimeProblem( [u, v, p], [uu, vv, pp] ) =
+            int2d(Th)(
+                lambda*div(u, v)*div(uu, vv)
+                + 2*G*epsilon(u, v)'*epsilon(uu, vv)
+                - alpha*p*div(uu, vv)
+
+                + dt * k/mu * grad(p)'*grad(pp)
+                + Seps*p*pp + alpha*div(u, v)*pp
+            )
+            -int2d(Th)(
+                Seps*pOld*pp + alpha*div(uOld, vOld)*pp
+            )
+            +int1d(Th, labelR)(
+                sigmaXInf*uu
+            )
+            -int1d(Th, labelL)(
+                sigmaXInf*uu
+            )
+            +int1d(Th, labelT)(
+                sigmaYInf*vv
+            )
+            -int1d(Th, labelB)(
+                p*vv
+            )
+            +int1d(Th, labelB)(
+                (v0<0)*(v/delta)*vv
+            )
+            +int1d(Th, labelB)(
+                v*pp + dt*((v0*v0*v0/3/mu) * dx(p) + omega* (v0*v0/mu) * v * dx(p0))*dx(pp)
+            )
+            -int1d(Th, labelB)(
+                vOld*pp
+            )
+            -int1d(Th,labelB)(
+                omega*(v0*v0/mu)*v0*dx(p0)*dx(pp)
+            )
+            +on(labelR, labelT, labelL, p=pInf);
+        
+        TimeProblem;   
+
+        plot(Th, v, dim=3, fill=1, nbiso=50, value=1);
+
+        real L2AbsError =
+            sqrt(
+                int2d(Th)(
+                    (u-u0)^2+(v-v0)^2
+                )
+            );
+        real L2Norm =  sqrt(
+                int2d(Th)(
+                    (v)^2+(u)^2
+                )
+            );
+        real L2RelError = L2AbsError / L2Norm;
+
+        real pL2AbsError =
+            sqrt(
+                int2d(Th)(
+                    (p-p0)^2
+                )
+            );
+        real pL2Norm = sqrt(
+                int2d(Th)(
+                    (p)^2
+                )
+            );
+        real pL2RelError = pL2AbsError / pL2Norm;
+        
+        
+        cout << "iIter = " << iIter << endl;
+        cout << "------(u,v) Error------" << endl << " uvRelError = " << L2RelError << endl;
+        cout << "uvAbsError = " << L2AbsError << endl;
+        cout << "(u,v) L2norm = " <<  L2Norm << endl;
+        cout << "------p Error------" << endl << " pRelError = " << pL2RelError << endl;
+        cout << "pAbsError = " << pL2AbsError << endl;  
+        cout << "p L2Norm = " << pL2Norm << endl << endl;  
+
+        v0=v;
+        p0=p;
+        u0=u;
+
+        iIter++; 
+    }
+    
+ 
+
+    uOld = u;
+    vOld = v;
+    pOld = p;
+    t = t + dt;
+
+
+}
+    
+
+plot(Th, u, dim=3, fill=1, nbiso=50, value=1, wait=1);
+
+plot(Th, v, dim=3, fill=1, nbiso=50, value=1, wait=1);
+
+plot(Th, p, dim=3, fill=1, nbiso=50, value=1, wait=1);
