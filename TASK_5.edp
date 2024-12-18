@@ -3,8 +3,8 @@ int[int] Order = [1];
 
 /* Domain deometry */
 
-real L = 10; /* [m] */
-real H = 10; /* [m] */
+real L = 80*4; /* [m] */
+real H = 80*4; /* [m] */
 
 /* Physical parameters */
 
@@ -30,6 +30,7 @@ int n = 50;
 
 real[int] xP = [-L, 0, L, L, -L];
 real[int] yP = [0, 0, 0, H, H];
+// int[int] nGamma = [12.8*L/L, 12.8*L/L, H/L, 2*L/L, H/L]*n;
 int[int] nGamma = [5*L/L, 5*L/L, H/L, 2*L/L, H/L]*n;
 
 int labelF = 1;
@@ -49,7 +50,7 @@ border GammaDomainOut(t = 0, 1; i){
 
 
 mesh Th = buildmesh( GammaDomainOut(nGamma));
-plot(Th);
+plot(Th, wait=1);
 
 /* Diff. operators */
 real sqrt2 = sqrt(2.0);
@@ -71,8 +72,8 @@ Vh [uu, vv, pp];
 Vh1 uOld, vOld;
 Vh1 pOld;
 
-real t=0;
-real dt = 0.001;
+real t = 0.0;
+real dt = 100.0;
 
 real delta = 1e-24; /*штраф*/
 
@@ -257,6 +258,7 @@ for(int i = 0; i < 100; i++){
     
     plot(Th, v, dim=3, fill=1, nbiso=50, value=1, wait=1);
     savevtk("vtkFiles\\v_" + i + ".vtk", Th, v, dataname="V", order=Order);
+    savevtk("vtkFiles\\p_" + i + ".vtk", Th, p, dataname="Pressure", order=Order);
 
 
     uOld = u;
